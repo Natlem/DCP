@@ -10,15 +10,17 @@ Pytorch implementation for "Discrimination-aware Channel Pruning for Deep Neural
 ![Algorithm](./imgs/algorithm.png)
 
 ## Requirements
-* python 3.6
-* pytorch1.0
+* python 2.7
+* pytorch 0.4
 * tensorflow
 * pyhocon
 
-## Usage Examples
+## Testing
 
-1. Download pre-trained mdoel.
-* [resnet-56 BaiduDrive](https://pan.baidu.com/s/1HFXzHNHFDa57RlVk2W71Aw).
+1. Download pre-trained pruned model.
+* [resnet-56-prune0.3 BaiduDrive](https://pan.baidu.com/s/1u4Vz5910F6ibH_J-wSnfqg), [resnet-56-prune0.3 GoogleDrive](https://drive.google.com/file/d/185s4qod1ts813rLHwMIciB47KiSTxQrZ/view)
+* [resnet-56-prune0.5 BaiduDrive](https://pan.baidu.com/s/186x0KWe4jzhBqap7oMqbFA), [resnet-56-prune0.5 GoogleDrive](https://drive.google.com/file/d/1uv8ACOmFzSDRWpW1T1qu5Psu46MB7WUt/view)
+* [resnet-56-prune0.7 BaiduDrive](https://pan.baidu.com/s/1-O0xuzDtPK8iZJDBe_m81g), [resnet-56-prune0.7 GoogleDrive](https://drive.google.com/open?id=1gdS3IfTCWzF8TcVaUcN_M5ENe_AIOYN3)
 
 2. Add DCP into PYTHONPATH.
 ```Shell
@@ -26,8 +28,32 @@ Pytorch implementation for "Discrimination-aware Channel Pruning for Deep Neural
 export PYTHONPATH=/home/liujing/Codes/Discrimination-aware-Channel-Pruning-for-Deep-Neural-Networks:$PYTHONPATH
 ```
 
-1. Set configuration for channel pruning.
-Before pruning, you need to set `log_path`, `data_path`, `experiment_id` and the `retrain` in `dcp/channel_pruning/cifar10_resnet.hocon`.
+3. Set configuration for channel pruning.
+You need to set `save_path`, `data_path`, `experiment_id`, `pruning_rate` and the `retrain` in `dcp/channel_pruning/cifar10_resnet.hocon`.
+
+```Shell
+cd dcp/channel_pruning/
+vim dcp/channel_pruning/cifar10_resnet.hocon
+```
+
+4. Run testing.
+```Shell
+python test.py test.hocon
+```
+
+## Usage Examples
+
+1. Download pre-trained mdoel.
+* [resnet-56 BaiduDrive](https://pan.baidu.com/s/1HFXzHNHFDa57RlVk2W71Aw), [resnet-56 GoogleDrive](https://drive.google.com/open?id=1nCIqcSkFdErtmgNUfwW2RDN6EUlFfTfa).
+
+2. Add DCP into PYTHONPATH.
+```Shell
+# This is my path of DCP. You need to change to your path of DCP.
+export PYTHONPATH=/home/liujing/Codes/Discrimination-aware-Channel-Pruning-for-Deep-Neural-Networks:$PYTHONPATH
+```
+
+3. Set configuration for channel pruning.
+Before pruning, you need to set `save_path`, `data_path`, `experiment_id` and the `retrain` in `dcp/channel_pruning/cifar10_resnet.hocon`.
 
 ```Shell
 cd dcp/channel_pruning/
@@ -45,7 +71,7 @@ Before fine-tuning, you need to set `retrain` to the path of `model_004.pth` in 
 vim cifar10_resnet.hocon
 ```
 
-1. Fine-tune the pruned model.
+6. Fine-tune the pruned model.
 ```Shell
 python fine_tuning.py cifar10_resnet_ft.hocon
 ```
