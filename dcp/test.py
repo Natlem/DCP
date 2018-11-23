@@ -9,7 +9,6 @@ import torch.utils.data
 import torch.utils.data.distributed
 import torchvision.datasets as datasets
 import torchvision.transforms as transforms
-from checkpoint import CheckPoint
 from option import Option
 from trainer import NetworkWiseTrainer
 
@@ -24,7 +23,6 @@ class Experiment(object):
 
     def __init__(self, options=None, conf_path=None):
         self.settings = options or Option(conf_path)
-        self.checkpoint = None
         self.train_loader = None
         self.val_loader = None
         self.pruned_model = None
@@ -94,28 +92,14 @@ class Experiment(object):
 
             norm_mean = [0.49139968, 0.48215827, 0.44653124]
             norm_std = [0.24703233, 0.24348505, 0.26158768]
-            train_transform = transforms.Compose([
-                transforms.RandomCrop(32, padding=4),
-                transforms.RandomHorizontalFlip(),
-                transforms.ToTensor(),
-                transforms.Normalize(norm_mean, norm_std)])
             val_transform = transforms.Compose([
                 transforms.ToTensor(),
                 transforms.Normalize(norm_mean, norm_std)])
 
-            train_dataset = datasets.CIFAR10(root=data_root,
-                                             train=True,
-                                             transform=train_transform,
-                                             download=True)
             val_dataset = datasets.CIFAR10(root=data_root,
                                            train=False,
                                            transform=val_transform)
 
-            self.train_loader = torch.utils.data.DataLoader(dataset=train_dataset,
-                                                            batch_size=self.settings.batch_size,
-                                                            shuffle=True,
-                                                            pin_memory=True,
-                                                            num_workers=self.settings.n_threads)
             self.val_loader = torch.utils.data.DataLoader(dataset=val_dataset,
                                                           batch_size=self.settings.batch_size,
                                                           shuffle=False,
@@ -123,24 +107,9 @@ class Experiment(object):
                                                           num_workers=self.settings.n_threads)
         elif self.settings.dataset == 'imagenet':
             dataset_path = os.path.join(self.settings.data_path, "imagenet")
-            traindir = os.path.join(dataset_path, "train")
             valdir = os.path.join(dataset_path, 'val')
             normalize = transforms.Normalize(mean=[0.485, 0.456, 0.406],
                                              std=[0.229, 0.224, 0.225])
-
-            self.train_loader = torch.utils.data.DataLoader(
-                datasets.ImageFolder(
-                    traindir,
-                    transforms.Compose([
-                        transforms.RandomResizedCrop(224),
-                        transforms.RandomHorizontalFlip(),
-                        transforms.ToTensor(),
-                        normalize,
-                    ])),
-                batch_size=self.settings.batch_size,
-                shuffle=True,
-                num_workers=self.settings.n_threads,
-                pin_memory=True)
 
             self.val_loader = torch.utils.data.DataLoader(
                 datasets.ImageFolder(valdir, transforms.Compose([
@@ -186,9 +155,7 @@ class Experiment(object):
 
         assert self.pruned_model is not None, "please create model first"
 
-        self.checkpoint = CheckPoint(self.settings.save_path, self.logger)
         self._load_pretrained()
-        self._load_resume()
 
     def _load_pretrained(self):
         """
@@ -198,21 +165,8 @@ class Experiment(object):
         if self.settings.retrain is not None:
             check_point_params = torch.load(self.settings.retrain)
             model_state = check_point_params
-            self.pruned_model = self.checkpoint.load_state(self.pruned_model, model_state)
+            self.pruned_model.load_state_dict(model_state)
             self.logger.info("|===>load restrain file: {}".format(self.settings.retrain))
-
-    def _load_resume(self):
-        """
-        load resume checkpoint
-        """
-
-        if self.settings.resume is not None:
-            check_point_params = torch.load(self.settings.resume)
-            pruned_model_state = check_point_params["pruned_model"]
-            self.optimizer_state = check_point_params["optimizer_state"]
-            self.epoch = check_point_params["epoch"]
-            self.pruned_model = self.checkpoint.load_state(self.pruned_model, pruned_model_state)
-            self.logger.info("|===>load resume file: {}".format(self.settings.resume))
 
     def _set_trainier(self):
         """
@@ -231,13 +185,10 @@ class Experiment(object):
         conduct network-wise fine-tuning
         """
 
-        val_error, val_loss, val5_error = self.network_wise_trainer.val(0)
+        self.network_wise_trainer.val(0)
 
 
 def main():
-    """
-    main func
-    """
     parser = argparse.ArgumentParser(description='Baseline')
     parser.add_argument('conf_path', type=str, metavar='conf_path',
                         help='input batch size for training (default: 64)')

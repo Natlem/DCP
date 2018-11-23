@@ -47,7 +47,7 @@ class PrunedPreBasicBlock(nn.Module):
         super(PrunedPreBasicBlock, self).__init__()
         self.name = block_type
         self.downsample = downsample
-        self.pruned_channel_plane = out_plane - math.floor(out_plane * pruning_rate)
+        self.pruned_channel_plane = int(out_plane - math.floor(out_plane * pruning_rate))
 
         self.bn1 = nn.BatchNorm2d(in_plane)
         self.relu1 = nn.ReLU(inplace=True)

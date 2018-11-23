@@ -18,7 +18,7 @@ class PrunedBasicBlock(nn.Module):
     def __init__(self, inplanes, planes, pruning_rate, stride=1, downsample=None):
         super(PrunedBasicBlock, self).__init__()
         self.name = "resnet-basic"
-        self.pruned_channel_plane = planes - math.floor(planes * pruning_rate)
+        self.pruned_channel_plane = int(planes - math.floor(planes * pruning_rate))
 
         self.conv1 = conv3x3(inplanes, self.pruned_channel_plane, stride)
         self.bn1 = nn.BatchNorm2d(self.pruned_channel_plane)

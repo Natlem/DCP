@@ -36,7 +36,7 @@ network_wise_step = [160, 240]  # multi-step for linear learning rate
 # ------------- model options ------------------------------------------
 net_type = "resnet"  # options: resnet | preresnet
 experiment_id = ""  # experiment identifier
-depth = 50  # resnet depth: (n-2)%6==0
+depth = 50  # preresnet depth: (n-2)%6==0
 n_classes = 1000  # number of classes in the dataset
 
 # ------------- resume or retrain options ------------------------------
