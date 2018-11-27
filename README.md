@@ -82,10 +82,15 @@ python fine_tuning.py cifar10_resnet.hocon
 ## Citation
 If you find *DCP* useful in your research, please consider to cite the following related papers:
 ```
-@article{zhuang2018discrimination,
-title={Discrimination-aware Channel Pruning for Deep Neural Networks},
-author={Zhuangwei Zhuang and Mingkui Tan and Bohan Zhuang and Jing Liu and Yong Guo and Qingyao Wu and Junzhou Huang and Jinhui Zhu},
-journal={arXiv:1801.07698},
-year={2018}
+@incollection{NIPS2018_7367,
+title = {Discrimination-aware Channel Pruning for Deep Neural Networks},
+author = {Zhuang, Zhuangwei and Tan, Mingkui and Zhuang, Bohan and Liu, Jing and Guo, Yong and Wu, Qingyao and Huang, Junzhou and Zhu, Jinhui},
+booktitle = {Advances in Neural Information Processing Systems 31},
+editor = {S. Bengio and H. Wallach and H. Larochelle and K. Grauman and N. Cesa-Bianchi and R. Garnett},
+pages = {881--892},
+year = {2018},
+publisher = {Curran Associates, Inc.},
+url = {http://papers.nips.cc/paper/7367-discrimination-aware-channel-pruning-for-deep-neural-networks.pdf}
 }
+
 ```
