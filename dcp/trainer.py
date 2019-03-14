@@ -33,7 +33,7 @@ class SegmentWiseTrainer(object):
         segment-wise trainer for channel selection
     """
 
-    def __init__(self, ori_model, pruned_model, train_loader, val_loader, settings, logger, tensorboard_logger,
+    def __init__(self, ori_model, pruned_model, train_loader, val_loader, settings, logger, v_logger,
                  run_count=0):
 
         self.ori_model = ori_model
@@ -42,7 +42,7 @@ class SegmentWiseTrainer(object):
         self.train_loader = train_loader
         self.val_loader = val_loader
         self.logger = logger
-        self.tensorboard_logger = tensorboard_logger
+        self.v_logger = v_logger
         self.criterion = nn.CrossEntropyLoss().cuda()
 
         self.segment_wise_lr = self.settings.segment_wise_lr
@@ -428,17 +428,18 @@ class SegmentWiseTrainer(object):
 
         top1_error_list, top1_loss_list, top5_error_list = self._convert_results(
             top1_error=top1_error, top1_loss=top1_loss, top5_error=top5_error)
+
+
+
         if self.logger is not None:
             for i in range(num_segments):
-                self.tensorboard_logger.scalar_summary(
-                    "segment_wise_fine_tune_train_top1_error_{:d}".format(i), top1_error[i].avg,
-                    self.run_count)
-                self.tensorboard_logger.scalar_summary(
-                    "segment_wise_fine_tune_train_top5_error_{:d}".format(i), top5_error[i].avg,
-                    self.run_count)
-                self.tensorboard_logger.scalar_summary(
-                    "segment_wise_fine_tune_train_loss_{:d}".format(i), top1_loss[i].avg, self.run_count)
-            self.tensorboard_logger.scalar_summary("segment_wise_fine_tune_lr", self.segment_wise_lr, self.run_count)
+                self.v_logger.scalar(
+                    "segment_wise_fine_tune_train_top1_error_{:d}".format(i), self.run_count, [top1_error[i].avg])
+                self.v_logger.scalar(
+                    "segment_wise_fine_tune_train_top5_error_{:d}".format(i),self.run_count, [top5_error[i].avg])
+                self.v_logger.scalar(
+                    "segment_wise_fine_tune_train_loss_{:d}".format(i), self.run_count, [top1_loss[i].avg])
+            self.v_logger.scalar("segment_wise_fine_tune_lr", self.run_count, [self.segment_wise_lr])
 
         self.logger.info("|===>Training Error: {:4f}/{:4f}, Loss: {:4f}".format(
             top1_error[-1].avg, top5_error[-1].avg, top1_loss[-1].avg))
@@ -502,12 +503,12 @@ class SegmentWiseTrainer(object):
 
         if self.logger is not None:
             for i in range(num_segments):
-                self.tensorboard_logger.scalar_summary(
-                    "segment_wise_fine_tune_val_top1_error_{:d}".format(i), top1_error[i].avg, self.run_count)
-                self.tensorboard_logger.scalar_summary(
-                    "segment_wise_fine_tune_val_top5_error_{:d}".format(i), top5_error[i].avg, self.run_count)
-                self.tensorboard_logger.scalar_summary(
-                    "segment_wise_fine_tune_val_loss_{:d}".format(i), top1_loss[i].avg, self.run_count)
+                self.v_logger.scalar(
+                    "segment_wise_fine_tune_val_top1_error_{:d}".format(i), self.run_count, [top1_error[i].avg])
+                self.v_logger.scalar(
+                    "segment_wise_fine_tune_val_top5_error_{:d}".format(i), self.run_count, [top5_error[i].avg])
+                self.v_logger.scalar(
+                    "segment_wise_fine_tune_val_loss_{:d}".format(i), self.run_count, [top1_loss[i].avg])
         self.run_count += 1
 
         self.logger.info("|===>Validation Error: {:4f}/{:4f}, Loss: {:4f}".format(
@@ -520,13 +521,13 @@ class NetworkWiseTrainer(object):
         network-wise trainer for fine tuning after channel selection
     """
 
-    def __init__(self, pruned_model, train_loader, val_loader, settings, logger, tensorboard_logger, run_count=0):
+    def __init__(self, pruned_model, train_loader, val_loader, settings, logger, v_logger, run_count=0):
         self.pruned_model = utils.data_parallel(pruned_model, settings.n_gpus)
         self.settings = settings
         self.train_loader = train_loader
         self.val_loader = val_loader
         self.logger = logger
-        self.tensorboard_logger = tensorboard_logger
+        self.v_logger = v_logger
         self.criterion = nn.CrossEntropyLoss().cuda()
         self.optimizer = torch.optim.SGD(
             params=self.pruned_model.parameters(),
@@ -646,9 +647,9 @@ class NetworkWiseTrainer(object):
         self.scalar_info['network_wise_fine_tune_train_loss'] = top1_loss.avg
         self.scalar_info['network_wise_fine_tune_lr'] = self.network_wise_lr
 
-        if self.tensorboard_logger is not None:
+        if self.v_logger is not None:
             for tag, value in list(self.scalar_info.items()):
-                self.tensorboard_logger.scalar_summary(tag, value, self.run_count)
+                self.v_logger.scalar(tag, self.run_count, [value])
             self.scalar_info = {}
 
         self.logger.info(
@@ -704,9 +705,10 @@ class NetworkWiseTrainer(object):
         self.scalar_info['network_wise_fine_tune_val_top1_error'] = top1_error.avg
         self.scalar_info['network_wise_fine_tune_val_top5_error'] = top5_error.avg
         self.scalar_info['network_wise_fine_tune_val_loss'] = top1_loss.avg
-        if self.tensorboard_logger is not None:
+
+        if self.v_logger is not None:
             for tag, value in self.scalar_info.items():
-                self.tensorboard_logger.scalar_summary(tag, value, self.run_count)
+                self.v_logger.scalar(tag, self.run_count, [value])
             self.scalar_info = {}
         self.run_count += 1
         self.logger.info(

@@ -24,9 +24,10 @@ from dcp.mask_conv import MaskConv2d
 from dcp.models.preresnet import PreBasicBlock
 from dcp.models.resnet import BasicBlock, Bottleneck
 from dcp.utils.tensorboard_logger import TensorboardLogger
+from visdom_logger.logger import VisdomLogger
 
 block_num = {'vgg': 16, 'preresnet56': 27, 'resnet18': 8, 'resnet50': 16}
-
+from visdom_logger.logger import VisdomLogger
 
 class Experiment(object):
     """
@@ -54,12 +55,10 @@ class Experiment(object):
         self.feature_cache_origin = {}
         self.feature_cache_pruned = {}
 
-        os.environ['CUDA_VISIBLE_DEVICES'] = self.settings.gpu
-
         self.settings.set_save_path()
         self.write_settings()
         self.logger = self.set_logger()
-        self.tensorboard_logger = TensorboardLogger(self.settings.save_path)
+        self.v_logger = VisdomLogger(port=10999)
 
         self.prepare()
 
@@ -114,7 +113,7 @@ class Experiment(object):
         # init random seed
         torch.manual_seed(self.settings.seed)
         torch.cuda.manual_seed(self.settings.seed)
-        torch.cuda.set_device(0)
+        torch.cuda.set_device(int(os.environ['CUDA_VISIBLE_DEVICES']))
         cudnn.benchmark = True
 
     def _set_dataloader(self):
@@ -199,7 +198,7 @@ class Experiment(object):
                                                        val_loader=self.val_loader,
                                                        settings=self.settings,
                                                        logger=self.logger,
-                                                       tensorboard_logger=self.tensorboard_logger)
+                                                       v_logger=self.v_logger)
         if self.aux_fc_state is not None:
             self.segment_wise_trainer.update_aux_fc(self.aux_fc_state, self.aux_fc_opt_state, self.seg_opt_state)
 
@@ -667,16 +666,18 @@ class Experiment(object):
                 if self.settings.max_samples != -1 and img_count >= self.settings.max_samples:
                     break
 
-            # write tensorboard log
-            self.tensorboard_logger.scalar_summary(tag="S-block-{}_{}_LossAll".format(block_count, layer_name),
-                                                   value=record_selection_loss.avg,
-                                                   step=logger_counter)
-            self.tensorboard_logger.scalar_summary(tag="S-block-{}_{}_MSELoss".format(block_count, layer_name),
-                                                   value=record_selection_mse_loss.avg,
-                                                   step=logger_counter)
-            self.tensorboard_logger.scalar_summary(tag="S-block-{}_{}_SoftmaxLoss".format(block_count, layer_name),
-                                                   value=record_selection_softmax_loss.avg,
-                                                   step=logger_counter)
+            self.v_logger.scalar("F-block-{}_{}_LossAll".format(block_count, layer_name),
+                                                   logger_counter,
+                                                   [record_selection_loss.avg])
+
+            self.v_logger.scalar("F-block-{}_{}_MSELoss".format(block_count, layer_name),
+                                                   logger_counter,
+                                                   [record_selection_mse_loss.avg])
+
+            self.v_logger.scalar("F-block-{}_{}_SoftmaxLoss".format(block_count, layer_name),
+                                                   logger_counter,
+                                                   [record_selection_softmax_loss.avg])
+
             cum_grad.abs_()
             # calculate gradient F norm
             grad_fnorm = cum_grad.mul(cum_grad).sum((2, 3)).sqrt().sum(0)
@@ -752,21 +753,25 @@ class Experiment(object):
             if layer.bias is not None:
                 layer.bias.requires_grad = False
 
-            self.tensorboard_logger.scalar_summary(tag="F-block-{}_{}_SoftmaxLoss".format(block_count, layer_name),
-                                                   value=record_finetune_softmax_loss.avg,
-                                                   step=logger_counter)
-            self.tensorboard_logger.scalar_summary(tag="F-block-{}_{}_Loss".format(block_count, layer_name),
-                                                   value=record_finetune_loss.avg,
-                                                   step=logger_counter)
-            self.tensorboard_logger.scalar_summary(tag="F-block-{}_{}_MSELoss".format(block_count, layer_name),
-                                                   value=record_finetune_mse_loss.avg,
-                                                   step=logger_counter)
-            self.tensorboard_logger.scalar_summary(tag="F-block-{}_{}_Top1Error".format(block_count, layer_name),
-                                                   value=record_finetune_top1_error.avg,
-                                                   step=logger_counter)
-            self.tensorboard_logger.scalar_summary(tag="F-block-{}_{}_Top5Error".format(block_count, layer_name),
-                                                   value=record_finetune_top5_error.avg,
-                                                   step=logger_counter)
+            self.v_logger.scalar("F-block-{}_{}_SoftmaxLoss".format(block_count, layer_name),
+                                                   logger_counter,
+                                                   [record_finetune_softmax_loss.avg])
+
+            self.v_logger.scalar("F-block-{}_{}_Loss".format(block_count, layer_name),
+                                                   logger_counter,
+                                                   [record_finetune_mse_loss.avg])
+
+            self.v_logger.scalar("F-block-{}_{}_MSELoss".format(block_count, layer_name),
+                                                   logger_counter,
+                                                   [record_finetune_loss.avg])
+
+            self.v_logger.scalar("F-block-{}_{}_Top1Error".format(block_count, layer_name),
+                                                   logger_counter,
+                                                   [record_finetune_top1_error.avg])
+
+            self.v_logger.scalar("F-block-{}_{}_Top5Error".format(block_count, layer_name),
+                                                   logger_counter,
+                                                   [record_finetune_top5_error.avg])
 
             # write log information to file
             self._write_log(

@@ -18,7 +18,7 @@ import dcp.models as md
 from dcp.mask_conv import MaskConv2d
 from dcp.models.preresnet import PreBasicBlock
 from dcp.models.resnet import BasicBlock, Bottleneck
-from dcp.utils.tensorboard_logger import TensorboardLogger
+from visdom_logger.logger import VisdomLogger
 
 
 class Experiment(object):
@@ -34,8 +34,6 @@ class Experiment(object):
         self.pruned_model = None
         self.network_wise_trainer = None
         self.optimizer_state = None
-
-        os.environ['CUDA_VISIBLE_DEVICES'] = self.settings.gpu
 
         self.settings.set_save_path()
         self.write_settings()
@@ -97,7 +95,7 @@ class Experiment(object):
         # init random seed
         torch.manual_seed(self.settings.seed)
         torch.cuda.manual_seed(self.settings.seed)
-        torch.cuda.set_device(0)
+        torch.cuda.set_device(int(os.environ['CUDA_VISIBLE_DEVICES']))
         cudnn.benchmark = True
 
     def _set_dataloader(self):
