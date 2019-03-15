@@ -19,14 +19,14 @@ from dcp.mask_conv import MaskConv2d
 from dcp.models.preresnet import PreBasicBlock
 from dcp.models.resnet import BasicBlock, Bottleneck
 from visdom_logger.logger import VisdomLogger
-
+from thop import profile
 
 class Experiment(object):
     """
     run experiments with pre-defined pipeline
     """
 
-    def __init__(self, options=None, conf_path=None):
+    def __init__(self, options=None, conf_path=None, logger=None):
         self.settings = options or Option(conf_path)
         self.checkpoint = None
         self.train_loader = None
@@ -38,8 +38,7 @@ class Experiment(object):
         self.settings.set_save_path()
         self.write_settings()
         self.logger = self.set_logger()
-        self.tensorboard_logger = TensorboardLogger(self.settings.save_path)
-
+        self.v_logger = logger
         self.epoch = 0
 
         self.prepare()
@@ -269,7 +268,7 @@ class Experiment(object):
                                                        val_loader=self.val_loader,
                                                        settings=self.settings,
                                                        logger=self.logger,
-                                                       tensorboard_logger=self.tensorboard_logger)
+                                                       tensorboard_logger=self.v_logger)
 
 
     def pruning(self):
@@ -329,6 +328,7 @@ class Experiment(object):
             self.logger.info("|===>Best Result is: Top1 Error: {:f}, Top5 Error: {:f}\n".format(best_top1, best_top5))
             self.logger.info("|==>Best Result is: Top1 Accuracy: {:f}, Top5 Accuracy: {:f}\n".format(100 - best_top1,
                                                                                                      100 - best_top5))
+            self.v_logger.log_scalar("Top1_error", 100 - best_top1, epoch)
 
             if self.settings.dataset in ["imagenet"]:
                 self.checkpoint.save_network_wise_fine_tune_checkpoint(
@@ -336,6 +336,9 @@ class Experiment(object):
             else:
                 self.checkpoint.save_network_wise_fine_tune_checkpoint(
                     self.pruned_model, self.network_wise_trainer.optimizer, epoch)
+        flops, params = profile(self.pruned_model, input_size=(1, 3, 32, 32))
+        self.v_logger.log_scalar("flops_count", flops, self.v_logger.id)
+        self.v_logger.log_scalar("params_count", params, self.v_logger.id)
 
 
 def main():

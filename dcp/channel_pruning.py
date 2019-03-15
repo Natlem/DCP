@@ -23,18 +23,18 @@ import dcp.utils as utils
 from dcp.mask_conv import MaskConv2d
 from dcp.models.preresnet import PreBasicBlock
 from dcp.models.resnet import BasicBlock, Bottleneck
-from dcp.utils.tensorboard_logger import TensorboardLogger
 from visdom_logger.logger import VisdomLogger
 
 block_num = {'vgg': 16, 'preresnet56': 27, 'resnet18': 8, 'resnet50': 16}
 from visdom_logger.logger import VisdomLogger
+from thop import profile
 
 class Experiment(object):
     """
     run experiments with pre-defined pipeline
     """
 
-    def __init__(self, options=None, conf_path=None):
+    def __init__(self, options=None, conf_path=None, logger=None):
         self.settings = options or Option(conf_path)
         self.checkpoint = None
         self.train_loader = None
@@ -58,7 +58,7 @@ class Experiment(object):
         self.settings.set_save_path()
         self.write_settings()
         self.logger = self.set_logger()
-        self.v_logger = VisdomLogger(port=10999)
+        self.v_logger = logger
 
         self.prepare()
 
@@ -113,7 +113,7 @@ class Experiment(object):
         # init random seed
         torch.manual_seed(self.settings.seed)
         torch.cuda.manual_seed(self.settings.seed)
-        torch.cuda.set_device(int(os.environ['CUDA_VISIBLE_DEVICES']))
+        torch.cuda.set_device(0)
         cudnn.benchmark = True
 
     def _set_dataloader(self):
@@ -539,6 +539,10 @@ class Experiment(object):
                                    index=self.num_segments)
         time_interval = time.time() - time_start
         log_str = "cost time: {}".format(str(datetime.timedelta(seconds=time_interval)))
+
+        flops, params = profile(self.pruned_model, input_size=(1,3,32,32))
+        self.v_logger.log_scalar("flops_count", flops,self.v_logger.id)
+        self.v_logger.log_scalar("params_count", params, self.v_logger.id)
         self.logger.info(log_str)
 
     def _hook_origin_feature(self, module, input, output):
@@ -666,17 +670,17 @@ class Experiment(object):
                 if self.settings.max_samples != -1 and img_count >= self.settings.max_samples:
                     break
 
-            self.v_logger.scalar("F-block-{}_{}_LossAll".format(block_count, layer_name),
-                                                   logger_counter,
-                                                   [record_selection_loss.avg])
+            self.v_logger.log_scalar("F-block-{}_{}_LossAll".format(block_count, layer_name),
+                                                   record_selection_loss.avg,
+                                                   logger_counter)
 
-            self.v_logger.scalar("F-block-{}_{}_MSELoss".format(block_count, layer_name),
-                                                   logger_counter,
-                                                   [record_selection_mse_loss.avg])
+            self.v_logger.log_scalar("F-block-{}_{}_MSELoss".format(block_count, layer_name),
+                                                   record_selection_mse_loss.avg,
+                                                   logger_counter)
 
-            self.v_logger.scalar("F-block-{}_{}_SoftmaxLoss".format(block_count, layer_name),
-                                                   logger_counter,
-                                                   [record_selection_softmax_loss.avg])
+            self.v_logger.log_scalar("F-block-{}_{}_SoftmaxLoss".format(block_count, layer_name),
+                                                   record_selection_softmax_loss.avg,
+                                                   logger_counter)
 
             cum_grad.abs_()
             # calculate gradient F norm
@@ -753,25 +757,25 @@ class Experiment(object):
             if layer.bias is not None:
                 layer.bias.requires_grad = False
 
-            self.v_logger.scalar("F-block-{}_{}_SoftmaxLoss".format(block_count, layer_name),
-                                                   logger_counter,
-                                                   [record_finetune_softmax_loss.avg])
+            self.v_logger.log_scalar("F-block-{}_{}_SoftmaxLoss".format(block_count, layer_name),
+                                                   [record_finetune_softmax_loss.avg],
+                                                   logger_counter)
 
-            self.v_logger.scalar("F-block-{}_{}_Loss".format(block_count, layer_name),
-                                                   logger_counter,
-                                                   [record_finetune_mse_loss.avg])
+            self.v_logger.log_scalar("F-block-{}_{}_Loss".format(block_count, layer_name),
+                                                   record_finetune_mse_loss.avg,
+                                                   logger_counter)
 
-            self.v_logger.scalar("F-block-{}_{}_MSELoss".format(block_count, layer_name),
-                                                   logger_counter,
-                                                   [record_finetune_loss.avg])
+            self.v_logger.log_scalar("F-block-{}_{}_MSELoss".format(block_count, layer_name),
+                                                   record_finetune_loss.avg,
+                                                   logger_counter)
 
-            self.v_logger.scalar("F-block-{}_{}_Top1Error".format(block_count, layer_name),
-                                                   logger_counter,
-                                                   [record_finetune_top1_error.avg])
+            self.v_logger.log_scalar("F-block-{}_{}_Top1Error".format(block_count, layer_name),
+                                                   record_finetune_top1_error.avg,
+                                                   logger_counter)
 
-            self.v_logger.scalar("F-block-{}_{}_Top5Error".format(block_count, layer_name),
-                                                   logger_counter,
-                                                   [record_finetune_top5_error.avg])
+            self.v_logger.log_scalar("F-block-{}_{}_Top5Error".format(block_count, layer_name),
+                                                   record_finetune_top5_error.avg,
+                                                   logger_counter)
 
             # write log information to file
             self._write_log(

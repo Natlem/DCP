@@ -433,13 +433,13 @@ class SegmentWiseTrainer(object):
 
         if self.logger is not None:
             for i in range(num_segments):
-                self.v_logger.scalar(
-                    "segment_wise_fine_tune_train_top1_error_{:d}".format(i), self.run_count, [top1_error[i].avg])
-                self.v_logger.scalar(
-                    "segment_wise_fine_tune_train_top5_error_{:d}".format(i),self.run_count, [top5_error[i].avg])
-                self.v_logger.scalar(
-                    "segment_wise_fine_tune_train_loss_{:d}".format(i), self.run_count, [top1_loss[i].avg])
-            self.v_logger.scalar("segment_wise_fine_tune_lr", self.run_count, [self.segment_wise_lr])
+                self.v_logger.log_scalar(
+                    "segment_wise_fine_tune_train_top1_error_{:d}".format(i), top1_error[i].avg, self.run_count)
+                self.v_logger.log_scalar(
+                    "segment_wise_fine_tune_train_top5_error_{:d}".format(i), top5_error[i].avg, self.run_count)
+                self.v_logger.log_scalar(
+                    "segment_wise_fine_tune_train_loss_{:d}".format(i), top1_loss[i].avg, self.run_count)
+            self.v_logger.log_scalar("segment_wise_fine_tune_lr", self.segment_wise_lr, self.run_count)
 
         self.logger.info("|===>Training Error: {:4f}/{:4f}, Loss: {:4f}".format(
             top1_error[-1].avg, top5_error[-1].avg, top1_loss[-1].avg))
@@ -503,12 +503,12 @@ class SegmentWiseTrainer(object):
 
         if self.logger is not None:
             for i in range(num_segments):
-                self.v_logger.scalar(
-                    "segment_wise_fine_tune_val_top1_error_{:d}".format(i), self.run_count, [top1_error[i].avg])
-                self.v_logger.scalar(
-                    "segment_wise_fine_tune_val_top5_error_{:d}".format(i), self.run_count, [top5_error[i].avg])
-                self.v_logger.scalar(
-                    "segment_wise_fine_tune_val_loss_{:d}".format(i), self.run_count, [top1_loss[i].avg])
+                self.v_logger.log_scalar(
+                    "segment_wise_fine_tune_val_top1_error_{:d}".format(i), top1_error[i].avg, self.run_count)
+                self.v_logger.log_scalar(
+                    "segment_wise_fine_tune_val_top5_error_{:d}".format(i), top5_error[i].avg, self.run_count)
+                self.v_logger.log_scalar(
+                    "segment_wise_fine_tune_val_loss_{:d}".format(i), top1_loss[i].avg, self.run_count)
         self.run_count += 1
 
         self.logger.info("|===>Validation Error: {:4f}/{:4f}, Loss: {:4f}".format(
@@ -649,7 +649,7 @@ class NetworkWiseTrainer(object):
 
         if self.v_logger is not None:
             for tag, value in list(self.scalar_info.items()):
-                self.v_logger.scalar(tag, self.run_count, [value])
+                self.v_logger.log_scalar(tag, value, self.run_count)
             self.scalar_info = {}
 
         self.logger.info(
@@ -708,7 +708,7 @@ class NetworkWiseTrainer(object):
 
         if self.v_logger is not None:
             for tag, value in self.scalar_info.items():
-                self.v_logger.scalar(tag, self.run_count, [value])
+                self.v_logger.log_scalar(tag, value, self.run_count)
             self.scalar_info = {}
         self.run_count += 1
         self.logger.info(
