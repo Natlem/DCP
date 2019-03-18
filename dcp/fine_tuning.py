@@ -268,7 +268,7 @@ class Experiment(object):
                                                        val_loader=self.val_loader,
                                                        settings=self.settings,
                                                        logger=self.logger,
-                                                       tensorboard_logger=self.v_logger)
+                                                       v_logger=self.v_logger)
 
 
     def pruning(self):
@@ -337,8 +337,13 @@ class Experiment(object):
                 self.checkpoint.save_network_wise_fine_tune_checkpoint(
                     self.pruned_model, self.network_wise_trainer.optimizer, epoch)
         flops, params = profile(self.pruned_model, input_size=(1, 3, 32, 32))
+        self.v_logger.log_scalar("last_acc", 100 - best_top1, 0)
         self.v_logger.log_scalar("flops_count", flops, self.v_logger.id)
         self.v_logger.log_scalar("params_count", params, self.v_logger.id)
+        f = open("result_of_pr{}_of_dataset_{}".format(self.settings.pruning_rate, self.settings.dataset), 'w')
+        f.write("last_acc:{}".format(100 - best_top1))
+        f.write("remaining_flops_count:{}".format(flops))
+        f.write("remaining_params_count:{}".format(params))
 
 
 def main():

@@ -1,9 +1,9 @@
 # ------------- general options ----------------------------------------
-save_path = "fn_09_cifar10_resnet56" # log path
+save_path = "" # log path
 data_path = "" # path for dataset folder, containing cifar10 and imagenet
-dataset = "cifar10"  # options: imagenet | cifar10
+dataset = "mnist"  # options: imagenet | cifar10
 seed = 1  # manually set RNG seed
-gpu = "4"  # GPU id to use, e.g. "0,1,2,3"
+gpu = "0"  # GPU id to use, e.g. "0,1,2,3"
 
 # ------------- data options -------------------------------------------
 n_threads = 4  # number of threads used for data loading
@@ -16,29 +16,29 @@ mse_weight = 1.0  # weight of the mean square loss
 max_samples = -1  # maximum sample size used for channel selection, -1 means using whole data set
 
 # ------------- common optimization options ----------------------------
-batch_size = 128  # mini-batch size
+batch_size = 64  # mini-batch size
 momentum = 0.9  # momentum
 weight_decay = 1e-4  # weight decay
 
 # ------------- block-wise optimization options ------------------------
-segment_wise_n_epochs = 100  # number of total epochs to fine tune in Algorihtm 1
+segment_wise_n_epochs = 40  # number of total epochs to fine tune in Algorihtm 1
 segment_wise_lr = 0.1  # initial learning rate
-segment_wise_step = [40, 60]  # multi-step for linear learning rate
+segment_wise_step = [20, 40]  # multi-step for linear learning rate
 
 # ------------- layer-wise optimization options ------------------------
 layer_wise_lr = 0.01  # initial learning rate
 
 # ------------- network-wise optimization options ----------------------
-network_wise_n_epochs = 400  # number of total epochs to train
+network_wise_n_epochs = 40  # number of total epochs to train
 network_wise_lr = 0.1  # initial learning rate
 network_wise_step = [160, 240]  # multi-step for linear learning rate
 
 # ------------- model options ------------------------------------------
 net_type = "preresnet"  # options: resnet | preresnet
 experiment_id = ""  # experiment identifier
-depth = 56  # preresnet depth: (n-2)%6==0
+depth = 18  # preresnet depth: (n-2)%6==0
 n_classes = 10  # number of classes in the dataset
 
 # ------------- resume or retrain options ------------------------------
-retrain = "/home/ens/AN88740/remote_pycharm/DCP/save_tmp/resnet56_cp_09/check_point/model_004.pth"  # path of the pre-trained model
+retrain = ""  # path of the pre-trained model
 resume = "" # resume checkpoint

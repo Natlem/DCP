@@ -92,7 +92,7 @@ class PreResNet(nn.Module):
     define PreResNet on small data sets
     """
 
-    def __init__(self, depth, wide_factor=1, num_classes=10):
+    def __init__(self, depth, wide_factor=1, num_classes=10, is_mnist=False):
         """
         init model and weights
         :param depth: depth of network
@@ -103,8 +103,10 @@ class PreResNet(nn.Module):
 
         self.in_plane = 16 * wide_factor
         self.depth = depth
-        n = (depth - 2) / 6
+        n = round((depth - 2) / 6)
         self.conv = conv3x3(3, 16 * wide_factor)
+        if  is_mnist:
+            self.conv = conv3x3(1, 16 * wide_factor)
         self.layer1 = self._make_layer(PreBasicBlock, 16 * wide_factor, n)
         self.layer2 = self._make_layer(
             PreBasicBlock, 32 * wide_factor, n, stride=2)

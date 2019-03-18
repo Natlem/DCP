@@ -33,7 +33,7 @@ def exp_basic_train(conf_path, id):
     l1 = LoggerForSacred(None, id, logger)
     option = Option(conf_path)
 
-    experiment = exp_fn(option)
+    experiment = exp_fn(option, logger=l1)
     experiment.pruning()
     experiment.fine_tuning()
 

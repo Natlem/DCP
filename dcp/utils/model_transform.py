@@ -22,13 +22,13 @@ def data_parallel(model, n_gpus, gpu0=0):
             if n_gpus >= 2:
                 if not isinstance(model[i], nn.DataParallel):
                     model[i] = torch.nn.DataParallel(model[i], gpu_list).cuda()
-            else:
+            elif model[i] is not None:
                 model[i] = model[i].cuda()
     else:
         if n_gpus >= 2:
             if not isinstance(model, nn.DataParallel):
                 model = torch.nn.DataParallel(model, gpu_list).cuda()
-        else:
+        elif model is not None:
             model = model.cuda()
     return model
 

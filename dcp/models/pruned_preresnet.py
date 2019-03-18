@@ -93,7 +93,7 @@ class PrunedPreResNet(nn.Module):
     define PrunedPreResNet on small data sets
     """
 
-    def __init__(self, depth, pruning_rate, wide_factor=1, num_classes=10):
+    def __init__(self, depth, pruning_rate, wide_factor=1, num_classes=10, is_mnist=False):
         """
         init model and weights
         :param depth: depth of network
@@ -106,6 +106,8 @@ class PrunedPreResNet(nn.Module):
         self.depth = depth
         n = (depth - 2) / 6
         self.conv = conv3x3(3, 16 * wide_factor)
+        if  is_mnist:
+            self.conv = conv3x3(1, 16 * wide_factor)
         self.layer1 = self._make_layer(PrunedPreBasicBlock, 16 * wide_factor, n, pruning_rate)
         self.layer2 = self._make_layer(PrunedPreBasicBlock, 32 * wide_factor, n, pruning_rate, stride=2)
         self.layer3 = self._make_layer(PrunedPreBasicBlock, 64 * wide_factor, n, pruning_rate, stride=2)

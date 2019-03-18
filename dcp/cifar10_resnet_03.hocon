@@ -1,5 +1,5 @@
 # ------------- general options ----------------------------------------
-save_path = "" # log path
+save_path = "fn_03_cifar10_resnet56" # log path
 data_path = "" # path for dataset folder, containing cifar10 and imagenet
 dataset = "cifar10"  # options: imagenet | cifar10
 seed = 1  # manually set RNG seed
@@ -40,5 +40,5 @@ depth = 56  # preresnet depth: (n-2)%6==0
 n_classes = 10  # number of classes in the dataset
 
 # ------------- resume or retrain options ------------------------------
-retrain = ""  # path of the pre-trained model
+retrain = "/home/ens/AN88740/remote_pycharm/DCP/save_tmp/resnet56_cp_03/check_point/model_004.pth"  # path of the pre-trained model
 resume = "" # resume checkpoint

@@ -25,9 +25,21 @@ from dcp.models.preresnet import PreBasicBlock
 from dcp.models.resnet import BasicBlock, Bottleneck
 from visdom_logger.logger import VisdomLogger
 
-block_num = {'vgg': 16, 'preresnet56': 27, 'resnet18': 8, 'resnet50': 16}
+block_num = {'vgg': 16, 'preresnet56': 27, 'preresnet18': 8, 'preresnet8': 3, 'resnet18': 8, 'resnet50': 16}
 from visdom_logger.logger import VisdomLogger
 from thop import profile
+class LoggerForSacred():
+    def __init__(self, visdom_logger, id, ex_logger=None):
+        self.visdom_logger = visdom_logger
+        self.ex_logger = ex_logger
+        self.id = id
+
+
+    def log_scalar(self, metrics_name, value, step):
+        if self.visdom_logger is not None:
+            self.visdom_logger.scalar(metrics_name + "_{}".format(self.id), step, [value])
+        if self.ex_logger is not None:
+            self.ex_logger.log_scalar(metrics_name + "_{}".format(self.id), value, step)
 
 class Experiment(object):
     """
@@ -153,6 +165,27 @@ class Experiment(object):
                                                           shuffle=False,
                                                           pin_memory=True,
                                                           num_workers=self.settings.n_threads)
+
+        elif self.settings.dataset == 'mnist':
+
+            transform_train = transforms.Compose([
+                transforms.Resize((32, 32)),
+                transforms.ToTensor(),
+                transforms.Normalize((0.1307,), (0.3081,))
+            ])
+
+            transform_test = transforms.Compose([
+                transforms.Resize((32, 32)),
+                transforms.ToTensor(),
+                transforms.Normalize((0.1307,), (0.3081,))
+            ])
+
+            trainset = datasets.MNIST(root='./data', train=True, download=True, transform=transform_train)
+            self.train_loader = torch.utils.data.DataLoader(trainset, batch_size=self.settings.batch_size, shuffle=True, num_workers=1)
+
+            testset = datasets.MNIST(root='./data', train=False, download=True, transform=transform_test)
+            self.val_loader = torch.utils.data.DataLoader(testset, batch_size=self.settings.batch_size, shuffle=True, num_workers=1)
+
         elif self.settings.dataset == 'imagenet':
             dataset_path = os.path.join(self.settings.data_path, "imagenet")
             traindir = os.path.join(dataset_path, "train")
@@ -211,6 +244,14 @@ class Experiment(object):
             if self.settings.net_type == "preresnet":
                 self.ori_model = md.PreResNet(depth=self.settings.depth, num_classes=self.settings.n_classes)
                 self.pruned_model = md.PreResNet(depth=self.settings.depth, num_classes=self.settings.n_classes)
+            else:
+                assert False, "use {} data while network is {}".format(self.settings.dataset, self.settings.net_type)
+
+        elif self.settings.dataset in ["mnist"]:
+            if self.settings.net_type == "preresnet":
+                self.is_mnist = True
+                self.ori_model = md.PreResNet(depth=self.settings.depth, num_classes=self.settings.n_classes, is_mnist=self.is_mnist)
+                self.pruned_model = md.PreResNet(depth=self.settings.depth, num_classes=self.settings.n_classes, is_mnist=self.is_mnist)
             else:
                 assert False, "use {} data while network is {}".format(self.settings.dataset, self.settings.net_type)
 
@@ -414,6 +455,8 @@ class Experiment(object):
                 restart_index = len(self.settings.pivot_set)
 
         for index in range(self.num_segments):
+            if self.segment_wise_trainer.pruned_segments[index] is None:
+                continue
             if restart_index is not None:
                 if index < restart_index:
                     continue
@@ -540,7 +583,10 @@ class Experiment(object):
         time_interval = time.time() - time_start
         log_str = "cost time: {}".format(str(datetime.timedelta(seconds=time_interval)))
 
-        flops, params = profile(self.pruned_model, input_size=(1,3,32,32))
+        if self.is_mnist:
+            flops, params = profile(self.pruned_model, input_size=(1,1,32,32))
+        else:
+            lops, params = profile(self.pruned_model, input_size=(1, 3, 32, 32))
         self.v_logger.log_scalar("flops_count", flops,self.v_logger.id)
         self.v_logger.log_scalar("params_count", params, self.v_logger.id)
         self.logger.info(log_str)
@@ -758,7 +804,7 @@ class Experiment(object):
                 layer.bias.requires_grad = False
 
             self.v_logger.log_scalar("F-block-{}_{}_SoftmaxLoss".format(block_count, layer_name),
-                                                   [record_finetune_softmax_loss.avg],
+                                                   record_finetune_softmax_loss.avg,
                                                    logger_counter)
 
             self.v_logger.log_scalar("F-block-{}_{}_Loss".format(block_count, layer_name),
@@ -911,14 +957,15 @@ class Experiment(object):
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Discrimination-aware channel pruning")
-    parser.add_argument('conf_path', type=str, metavar='conf_path',
-                        help='configuration path')
-    args = parser.parse_args()
+    #parser = argparse.ArgumentParser(description="Discrimination-aware channel pruning")
+    #parser.add_argument('conf_path', type=str, metavar='conf_path',
+    #                    help='configuration path')
+    #args = parser.parse_args()
 
-    option = Option(args.conf_path)
-
-    experiment = Experiment(option)
+    option = Option("mnist_resnet18_03.hocon")
+    vis = VisdomLogger(port=10999)
+    l = LoggerForSacred(vis,0)
+    experiment = Experiment(option, logger=l)
     experiment.channel_selection()
 
 

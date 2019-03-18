@@ -24,7 +24,7 @@ from dcp.channel_pruning import Experiment as exp_cp
 def exp_config():
 
     # Hyper Parameters Config
-    conf_path = "cifat_resnet_03.hocon"
+    conf_path = "mnist_resnet18_03.hocon"
 
 @ex.capture()
 def exp_basic_train(conf_path, id):
@@ -43,12 +43,12 @@ def run_exp():
 
 if __name__ == "__main__":
 
-    ex.run(config_updates={'conf_path': "dcp/cifar10_resnet_03.hocon" , "id": "0.3"},
-           options={'--name': 'DCP_cifar10_resnet_56_cp_prune_03'})
-    ex.run(config_updates={'conf_path': "dcp/cifar10_resnet_05.hocon" , "id": "0.5"},
-           options={'--name': 'DCP_cifar10_resnet_56_cp_prune_05'})
-    ex.run(config_updates={'conf_path': "dcp/cifar10_resnet_07.hocon" , "id": "0.7"},
-           options={'--name': 'DCP_cifar10_resnet_56_cp_prune_07'})
-    ex.run(config_updates={'conf_path': "dcp/cifar10_resnet_09.hocon" , "id": "0.9"},
-           options={'--name': 'DCP_cifar10_resnet_56_cp_prune_09'})
+    ex.run(config_updates={'conf_path': "dcp/mnist_resnet18_03.hocon" , "id": "0.3"},
+           options={'--name': 'DCP_mnist_resnet_18_cp_prune_03'})
+    ex.run(config_updates={'conf_path': "dcp/mnist_resnet18_05.hocon" , "id": "0.5"},
+           options={'--name': 'DCP_mnist_resnet_18_cp_prune_05'})
+    ex.run(config_updates={'conf_path': "dcp/mnist_resnet18_07.hocon" , "id": "0.7"},
+           options={'--name': 'DCP_mnist_resnet_18_cp_prune_07'})
+    ex.run(config_updates={'conf_path': "dcp/mnist_resnet18_09.hocon" , "id": "0.9"},
+           options={'--name': 'DCP_mnist_resnet_18_cp_prune_09'})
 

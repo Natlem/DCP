@@ -93,6 +93,7 @@ class CheckPoint(object):
         aux_fc_opt_state = []
         seg_opt_state = []
         if aux_fc:
+
             for i in range(len(aux_fc)):
                 if isinstance(aux_fc[i], nn.DataParallel):
                     temp_state = aux_fc[i].module.state_dict()

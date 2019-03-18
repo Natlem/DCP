@@ -112,20 +112,23 @@ class SegmentWiseTrainer(object):
                         net_pruned = None
 
         self.final_block_count = block_count
+        #if net_origin is not None:
         self.ori_segments.append(net_origin)
         self.pruned_segments.append(net_pruned)
 
         # create auxiliary classifier
         num_classes = self.settings.n_classes
         in_channels = 0
-        for i in range(len(self.pruned_segments) - 1):
-            if isinstance(self.pruned_segments[i][-1], (PreBasicBlock, BasicBlock)):
-                in_channels = self.pruned_segments[i][-1].conv2.out_channels
-            elif isinstance(self.pruned_segments[i][-1], Bottleneck):
-                in_channels = self.pruned_segments[i][-1].conv3.out_channels
-            assert in_channels != 0, "in_channels is zero"
+        t = 1 if self.pruned_segments[-1] is not None else 2
+        for i in range(len(self.pruned_segments) - t):
+            if self.pruned_segments[i] is not None:
+                if isinstance(self.pruned_segments[i][-1], (PreBasicBlock, BasicBlock)):
+                    in_channels = self.pruned_segments[i][-1].conv2.out_channels
+                elif isinstance(self.pruned_segments[i][-1], Bottleneck):
+                    in_channels = self.pruned_segments[i][-1].conv3.out_channels
+                assert in_channels != 0, "in_channels is zero"
 
-            self.aux_fc.append(AuxClassifier(in_channels=in_channels, num_classes=num_classes))
+                self.aux_fc.append(AuxClassifier(in_channels=in_channels, num_classes=num_classes))
 
         pruned_final_fc = None
         if self.settings.net_type == "preresnet":
@@ -149,29 +152,31 @@ class SegmentWiseTrainer(object):
 
         # create optimizers
         for i in range(len(self.pruned_segments)):
-            temp_optim = []
-            # add parameters in segmenets into optimizer
-            # from the i-th optimizer contains [0:i] segments
-            for j in range(i + 1):
-                temp_optim.append({'params': self.pruned_segments[j].parameters(),
-                                   'lr': self.settings.segment_wise_lr})
+            if self.pruned_segments[i] is not None:
+                temp_optim = []
+                # add parameters in segmenets into optimizer
+                # from the i-th optimizer contains [0:i] segments
+                for j in range(i + 1):
+                    if self.pruned_segments[j] is not None:
+                        temp_optim.append({'params': self.pruned_segments[j].parameters(),
+                                           'lr': self.settings.segment_wise_lr})
 
-            # optimizer for segments and fc
-            temp_seg_optim = torch.optim.SGD(
-                temp_optim,
-                momentum=self.settings.momentum,
-                weight_decay=self.settings.weight_decay,
-                nesterov=True)
+                # optimizer for segments and fc
+                temp_seg_optim = torch.optim.SGD(
+                    temp_optim,
+                    momentum=self.settings.momentum,
+                    weight_decay=self.settings.weight_decay,
+                    nesterov=True)
 
-            temp_fc_optim = torch.optim.SGD(
-                params=self.aux_fc[i].parameters(),
-                lr=self.settings.segment_wise_lr,
-                momentum=self.settings.momentum,
-                weight_decay=self.settings.weight_decay,
-                nesterov=True)
+                temp_fc_optim = torch.optim.SGD(
+                    params=self.aux_fc[i].parameters(),
+                    lr=self.settings.segment_wise_lr,
+                    momentum=self.settings.momentum,
+                    weight_decay=self.settings.weight_decay,
+                    nesterov=True)
 
-            self.seg_optimizer.append(temp_seg_optim)
-            self.fc_optimizer.append(temp_fc_optim)
+                self.seg_optimizer.append(temp_seg_optim)
+                self.fc_optimizer.append(temp_fc_optim)
 
     @staticmethod
     def _convert_results(top1_error, top1_loss, top5_error):
@@ -285,12 +290,13 @@ class SegmentWiseTrainer(object):
         losses = []
         for i in range(len(self.pruned_segments)):
             # forward
-            temp_output = self.pruned_segments[i](temp_input)
-            fcs_output = self.aux_fc[i](temp_output)
-            outputs.append(fcs_output)
-            if labels is not None:
-                losses.append(self.criterion(fcs_output, labels))
-            temp_input = temp_output
+            if self.pruned_segments[i] is not None:
+                temp_output = self.pruned_segments[i](temp_input)
+                fcs_output = self.aux_fc[i](temp_output)
+                outputs.append(fcs_output)
+                if labels is not None:
+                    losses.append(self.criterion(fcs_output, labels))
+                temp_input = temp_output
         return outputs, losses
 
     @staticmethod
@@ -320,16 +326,17 @@ class SegmentWiseTrainer(object):
             losses[i].backward(retain_graph=True)
 
             for j in range(len(self.pruned_segments)):
-                if isinstance(self.pruned_segments[i], nn.DataParallel):
-                    for module in self.pruned_segments[j].module.modules():
-                        if isinstance(module, MaskConv2d) and module.pruned_weight.grad is not None:
-                            module.pruned_weight.grad.data.mul_(
-                                module.d.unsqueeze(0).unsqueeze(2).unsqueeze(3).expand_as(module.pruned_weight))
-                else:
-                    for module in self.pruned_segments[j].modules():
-                        if isinstance(module, MaskConv2d) and module.pruned_weight.grad is not None:
-                            module.pruned_weight.grad.data.mul_(
-                                module.d.unsqueeze(0).unsqueeze(2).unsqueeze(3).expand_as(module.pruned_weight))
+                if self.pruned_segments[j] is not None:
+                    if isinstance(self.pruned_segments[i], nn.DataParallel):
+                        for module in self.pruned_segments[j].module.modules():
+                            if isinstance(module, MaskConv2d) and module.pruned_weight.grad is not None:
+                                module.pruned_weight.grad.data.mul_(
+                                    module.d.unsqueeze(0).unsqueeze(2).unsqueeze(3).expand_as(module.pruned_weight))
+                    else:
+                        for module in self.pruned_segments[j].modules():
+                            if isinstance(module, MaskConv2d) and module.pruned_weight.grad is not None:
+                                module.pruned_weight.grad.data.mul_(
+                                    module.d.unsqueeze(0).unsqueeze(2).unsqueeze(3).expand_as(module.pruned_weight))
 
             # correct NaN values
             for param_group in self.seg_optimizer[i].param_groups:
@@ -382,14 +389,15 @@ class SegmentWiseTrainer(object):
         top1_loss = []
         num_segments = len(self.pruned_segments)
         for i in range(num_segments):
-            self.pruned_segments[i].train()
-            if i != index and i != num_segments - 1:
-                self.aux_fc[i].eval()
-            else:
-                self.aux_fc[i].train()
-            top1_error.append(utils.AverageMeter())
-            top5_error.append(utils.AverageMeter())
-            top1_loss.append(utils.AverageMeter())
+            if self.pruned_segments[i] is not None:
+                self.pruned_segments[i].train()
+                if i != index and i != num_segments - 1:
+                    self.aux_fc[i].eval()
+                else:
+                    self.aux_fc[i].train()
+                top1_error.append(utils.AverageMeter())
+                top5_error.append(utils.AverageMeter())
+                top1_loss.append(utils.AverageMeter())
 
         start_time = time.time()
         end_time = start_time
@@ -412,9 +420,10 @@ class SegmentWiseTrainer(object):
                 loss=losses, top5_flag=True, mean_flag=True)
 
             for j in range(num_segments):
-                top1_error[j].update(single_error[j], images.size(0))
-                top5_error[j].update(single5_error[j], images.size(0))
-                top1_loss[j].update(single_loss[j], images.size(0))
+                if self.pruned_segments[j] is not None:
+                    top1_error[j].update(single_error[j], images.size(0))
+                    top5_error[j].update(single5_error[j], images.size(0))
+                    top1_loss[j].update(single_loss[j], images.size(0))
 
             end_time = time.time()
             iter_time = end_time - start_time
@@ -433,12 +442,13 @@ class SegmentWiseTrainer(object):
 
         if self.logger is not None:
             for i in range(num_segments):
-                self.v_logger.log_scalar(
-                    "segment_wise_fine_tune_train_top1_error_{:d}".format(i), top1_error[i].avg, self.run_count)
-                self.v_logger.log_scalar(
-                    "segment_wise_fine_tune_train_top5_error_{:d}".format(i), top5_error[i].avg, self.run_count)
-                self.v_logger.log_scalar(
-                    "segment_wise_fine_tune_train_loss_{:d}".format(i), top1_loss[i].avg, self.run_count)
+                if self.pruned_segments[i] is not None:
+                    self.v_logger.log_scalar(
+                        "segment_wise_fine_tune_train_top1_error_{:d}".format(i), top1_error[i].avg, self.run_count)
+                    self.v_logger.log_scalar(
+                        "segment_wise_fine_tune_train_top5_error_{:d}".format(i), top5_error[i].avg, self.run_count)
+                    self.v_logger.log_scalar(
+                        "segment_wise_fine_tune_train_loss_{:d}".format(i), top1_loss[i].avg, self.run_count)
             self.v_logger.log_scalar("segment_wise_fine_tune_lr", self.segment_wise_lr, self.run_count)
 
         self.logger.info("|===>Training Error: {:4f}/{:4f}, Loss: {:4f}".format(
@@ -456,11 +466,12 @@ class SegmentWiseTrainer(object):
         top1_loss = []
         num_segments = len(self.pruned_segments)
         for i in range(num_segments):
-            self.pruned_segments[i].eval()
-            self.aux_fc[i].eval()
-            top1_error.append(utils.AverageMeter())
-            top5_error.append(utils.AverageMeter())
-            top1_loss.append(utils.AverageMeter())
+            if self.pruned_segments[i] is not None:
+                self.pruned_segments[i].eval()
+                self.aux_fc[i].eval()
+                top1_error.append(utils.AverageMeter())
+                top5_error.append(utils.AverageMeter())
+                top1_loss.append(utils.AverageMeter())
 
         iters = len(self.val_loader)
 
@@ -484,9 +495,10 @@ class SegmentWiseTrainer(object):
                     loss=losses, top5_flag=True, mean_flag=True)
 
                 for j in range(num_segments):
-                    top1_error[j].update(single_error[j], images.size(0))
-                    top5_error[j].update(single5_error[j], images.size(0))
-                    top1_loss[j].update(single_loss[j], images.size(0))
+                    if self.pruned_segments[j] is not None:
+                        top1_error[j].update(single_error[j], images.size(0))
+                        top5_error[j].update(single5_error[j], images.size(0))
+                        top1_loss[j].update(single_loss[j], images.size(0))
 
                 end_time = time.time()
                 iter_time = end_time - start_time
@@ -503,12 +515,13 @@ class SegmentWiseTrainer(object):
 
         if self.logger is not None:
             for i in range(num_segments):
-                self.v_logger.log_scalar(
-                    "segment_wise_fine_tune_val_top1_error_{:d}".format(i), top1_error[i].avg, self.run_count)
-                self.v_logger.log_scalar(
-                    "segment_wise_fine_tune_val_top5_error_{:d}".format(i), top5_error[i].avg, self.run_count)
-                self.v_logger.log_scalar(
-                    "segment_wise_fine_tune_val_loss_{:d}".format(i), top1_loss[i].avg, self.run_count)
+                if self.pruned_segments[i] is not None:
+                    self.v_logger.log_scalar(
+                        "segment_wise_fine_tune_val_top1_error_{:d}".format(i), top1_error[i].avg, self.run_count)
+                    self.v_logger.log_scalar(
+                        "segment_wise_fine_tune_val_top5_error_{:d}".format(i), top5_error[i].avg, self.run_count)
+                    self.v_logger.log_scalar(
+                        "segment_wise_fine_tune_val_loss_{:d}".format(i), top1_loss[i].avg, self.run_count)
         self.run_count += 1
 
         self.logger.info("|===>Validation Error: {:4f}/{:4f}, Loss: {:4f}".format(
