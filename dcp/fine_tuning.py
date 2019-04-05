@@ -21,6 +21,19 @@ from dcp.models.resnet import BasicBlock, Bottleneck
 from visdom_logger.logger import VisdomLogger
 from thop import profile
 
+class LoggerForSacred():
+    def __init__(self, visdom_logger, id, ex_logger=None):
+        self.visdom_logger = visdom_logger
+        self.ex_logger = ex_logger
+        self.id = id
+
+
+    def log_scalar(self, metrics_name, value, step):
+        if self.visdom_logger is not None:
+            self.visdom_logger.scalar(metrics_name + "_{}".format(self.id), step, [value])
+        if self.ex_logger is not None:
+            self.ex_logger.log_scalar(metrics_name + "_{}".format(self.id), value, step)
+
 class Experiment(object):
     """
     run experiments with pre-defined pipeline
@@ -134,6 +147,29 @@ class Experiment(object):
                                                           shuffle=False,
                                                           pin_memory=True,
                                                           num_workers=self.settings.n_threads)
+
+        elif self.settings.dataset == 'mnist':
+            transform_train = transforms.Compose([
+                transforms.Resize((32, 32)),
+                transforms.ToTensor(),
+                transforms.Normalize((0.1307,), (0.3081,))
+            ])
+
+            transform_test = transforms.Compose([
+                transforms.Resize((32, 32)),
+                transforms.ToTensor(),
+                transforms.Normalize((0.1307,), (0.3081,))
+            ])
+
+            trainset = datasets.MNIST(root='./data', train=True, download=True, transform=transform_train)
+            self.train_loader = torch.utils.data.DataLoader(trainset, batch_size=self.settings.batch_size, shuffle=True,
+                                                            num_workers=1)
+
+            testset = datasets.MNIST(root='./data', train=False, download=True, transform=transform_test)
+            self.val_loader = torch.utils.data.DataLoader(testset, batch_size=self.settings.batch_size, shuffle=True,
+                                                          num_workers=1)
+
+
         elif self.settings.dataset == 'imagenet':
             dataset_path = os.path.join(self.settings.data_path, "imagenet")
             traindir = os.path.join(dataset_path, "train")
@@ -178,6 +214,15 @@ class Experiment(object):
                                                  num_classes=self.settings.n_classes)
             else:
                 assert False, "use {} data while network is {}".format(self.settings.dataset, self.settings.net_type)
+
+        elif self.settings.dataset in ["mnist"]:
+            if self.settings.net_type == "preresnet":
+                self.is_mnist = True
+                self.pruned_model = md.PreResNet(depth=self.settings.depth, num_classes=self.settings.n_classes,
+                                                 is_mnist=self.is_mnist)
+            else:
+                assert False, "use {} data while network is {}".format(self.settings.dataset, self.settings.net_type)
+
 
         elif self.settings.dataset in ["imagenet", "imagenet_mio"]:
             if self.settings.net_type == "resnet":
@@ -336,7 +381,11 @@ class Experiment(object):
             else:
                 self.checkpoint.save_network_wise_fine_tune_checkpoint(
                     self.pruned_model, self.network_wise_trainer.optimizer, epoch)
-        flops, params = profile(self.pruned_model, input_size=(1, 3, 32, 32))
+
+        if self.is_mnist:
+            flops, params = profile(self.pruned_model, input_size=(1, 1, 32, 32))
+        else:
+            flops, params = profile(self.pruned_model, input_size=(1, 3, 32, 32))
         self.v_logger.log_scalar("last_acc", 100 - best_top1, 0)
         self.v_logger.log_scalar("flops_count", flops, self.v_logger.id)
         self.v_logger.log_scalar("params_count", params, self.v_logger.id)
@@ -350,14 +399,16 @@ def main():
     """
     main func
     """
-    parser = argparse.ArgumentParser(description='Baseline')
-    parser.add_argument('conf_path', type=str, metavar='conf_path',
-                        help='input batch size for training (default: 64)')
-    args = parser.parse_args()
+    #parser = argparse.ArgumentParser(description='Baseline')
+    #parser.add_argument('conf_path', type=str, metavar='conf_path',
+    #                    help='input batch size for training (default: 64)')
+    #args = parser.parse_args()
 
-    option = Option(args.conf_path)
+    option = Option("mnist_resnet18_03.hocon")
+    vis = VisdomLogger(port=10999)
+    l = LoggerForSacred(vis,0)
 
-    experiment = Experiment(option)
+    experiment = Experiment(option, logger=l)
     experiment.pruning()
     experiment.fine_tuning()
 

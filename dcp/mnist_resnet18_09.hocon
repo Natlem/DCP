@@ -1,6 +1,6 @@
 # ------------- general options ----------------------------------------
-save_path = "" # log path
-data_path = "" # path for dataset folder, containing cifar10 and imagenet
+save_path = "fn_09_mnist_resnet20" # log path
+data_path = "" # path for dataset fo20lder, containing cifar10 and imagenet
 dataset = "mnist"  # options: imagenet | cifar10
 seed = 1  # manually set RNG seed
 gpu = "0"  # GPU id to use, e.g. "0,1,2,3"
@@ -29,7 +29,7 @@ segment_wise_step = [20, 40]  # multi-step for linear learning rate
 layer_wise_lr = 0.01  # initial learning rate
 
 # ------------- network-wise optimization options ----------------------
-network_wise_n_epochs = 40  # number of total epochs to train
+network_wise_n_epochs = 20  # number of total epochs to train
 network_wise_lr = 0.1  # initial learning rate
 network_wise_step = [160, 240]  # multi-step for linear learning rate
 
@@ -40,5 +40,5 @@ depth = 18  # preresnet depth: (n-2)%6==0
 n_classes = 10  # number of classes in the dataset
 
 # ------------- resume or retrain options ------------------------------
-retrain = ""  # path of the pre-trained model
+retrain = "/home/ens/AN88740/remote_pycharm/DCP/save_tmp/mnist_resnet20_09/check_point/model_004.pth"  # path of the pre-trained model
 resume = "" # resume checkpoint

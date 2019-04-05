@@ -44,12 +44,12 @@ def run_exp():
 
 if __name__ == "__main__":
 
-    ex.run(config_updates={'conf_path': "dcp/cifar10_resnet_03.hocon" , "id": "0.3"},
-           options={'--name': 'DCP_cifar10_resnet_56_fn_prune_03'})
-    ex.run(config_updates={'conf_path': "dcp/cifar10_resnet_05.hocon" , "id": "0.5"},
-           options={'--name': 'DCP_cifar10_resnet_56_fn_prune_05'})
-    ex.run(config_updates={'conf_path': "dcp/cifar10_resnet_07.hocon" , "id": "0.7"},
-           options={'--name': 'DCP_cifar10_resnet_56_fn_prune_07'})
-    ex.run(config_updates={'conf_path': "dcp/cifar10_resnet_09.hocon" , "id": "0.9"},
-           options={'--name': 'DCP_cifar10_resnet_56_fn_prune_09'})
+    ex.run(config_updates={'conf_path': "dcp/mnist_resnet18_03.hocon" , "id": "0.3"},
+           options={'--name': 'DCP_mnist_resnet18_fn_prune_03'})
+    ex.run(config_updates={'conf_path': "dcp/mnist_resnet18_05.hocon" , "id": "0.5"},
+           options={'--name': 'DCP_mnist_resnet18_fn_prune_05'})
+    ex.run(config_updates={'conf_path': "dcp/mnist_resnet18_07.hocon" , "id": "0.7"},
+           options={'--name': 'DCP_mnist_resnet18_fn_prune_07'})
+    ex.run(config_updates={'conf_path': "dcp/mnist_resnet18_09.hocon" , "id": "0.9"},
+           options={'--name': 'DCP_mnist_resnet18_fn_prune_09'})
 
