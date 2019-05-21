@@ -11,6 +11,7 @@ class Option(object):
 
         # ------------- general options ----------------------------------------
         self.save_path = self.conf['save_path']  # log path
+        self.save_path_p = self.conf['save_path_p']
         self.data_path = self.conf['data_path']  # path for loading data set
         self.dataset = self.conf['dataset']  # options: imagenet | cifar10
         self.seed = self.conf['seed']  # manually set RNG seed
@@ -56,6 +57,7 @@ class Option(object):
         self.retrain = None if len(self.conf['retrain']) == 0 else self.conf['retrain']
         # path to directory containing checkpoint, load state_dicts of model and optimizer, as well as training epoch
         self.resume = None if len(self.conf['resume']) == 0 else self.conf['resume']
+        self.retrain_p = None if len(self.conf['retrain_p']) == 0 else self.conf['retrain_p']
 
     def params_check(self):
         if self.dataset in ["cifar10"]:

@@ -27,6 +27,23 @@ class View(nn.Module):
             out = x
         return out
 
+class LView(nn.Module):
+    """
+    reshape data from 4 dimension to 2 dimension
+    """
+
+    def __init__(self, out_c):
+        super(LView, self).__init__()
+        self.out_c = out_c
+
+    def forward(self, x):
+        assert x.dim() == 2 or x.dim() == 4, "invalid dimension of input {:d}".format(x.dim())
+        if x.dim() == 4:
+            out = x.view(-1, self.out_c)
+        else:
+            out = x
+        return out
+
 
 class SegmentWiseTrainer(object):
     """
@@ -84,7 +101,8 @@ class SegmentWiseTrainer(object):
                     self.pruned_model.maxpool)
                 net_pruned = nn.Sequential(net_head)
             self.logger.info("init shallow head done!")
-
+        elif self.settings.net_type in ['vgg', 'lenet']:
+            pass
         else:
             assert False, "unsupported net_type: {}".format(self.settings.net_type)
 
@@ -110,6 +128,27 @@ class SegmentWiseTrainer(object):
                         self.pruned_segments.append(net_pruned)
                         net_origin = None
                         net_pruned = None
+        elif self.settings.net_type in ['vgg', 'lenet']:
+            for ori_module, pruned_module in zip(list(self.ori_model.features.modules())[0], list(self.pruned_model.features.modules())[0]):
+
+                self.logger.info('enter block: {}'.format(type(ori_module)))
+                if net_origin is not None:
+                    net_origin.add_module(str(len(net_origin)), ori_module)
+                else:
+                    net_origin = nn.Sequential(ori_module)
+
+                if net_pruned is not None:
+                    net_pruned.add_module(str(len(net_pruned)), pruned_module)
+                else:
+                    net_pruned = nn.Sequential(pruned_module)
+                if isinstance(ori_module, nn.Conv2d):
+                    block_count += 1
+                    if block_count in self.settings.pivot_set:
+                        self.ori_segments.append(net_origin)
+                        self.pruned_segments.append(net_pruned)
+                        net_origin = None
+                        net_pruned = None
+
 
         self.final_block_count = block_count
         #if net_origin is not None:
@@ -126,6 +165,8 @@ class SegmentWiseTrainer(object):
                     in_channels = self.pruned_segments[i][-1].conv2.out_channels
                 elif isinstance(self.pruned_segments[i][-1], Bottleneck):
                     in_channels = self.pruned_segments[i][-1].conv3.out_channels
+                elif isinstance(self.pruned_segments[i][-1], nn.Conv2d):
+                    in_channels = self.pruned_segments[i][-1].out_channels
                 assert in_channels != 0, "in_channels is zero"
 
                 self.aux_fc.append(AuxClassifier(in_channels=in_channels, num_classes=num_classes))
@@ -143,6 +184,9 @@ class SegmentWiseTrainer(object):
                 self.pruned_model.avgpool,
                 View(),
                 self.pruned_model.fc])
+        elif self.settings.net_type == 'lenet':
+            pruned_final_fc = nn.Sequential(View(), *self.pruned_model.classifier)
+
         self.aux_fc.append(pruned_final_fc)
 
         # model parallel

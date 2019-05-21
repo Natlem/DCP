@@ -25,7 +25,7 @@ from dcp.models.preresnet import PreBasicBlock
 from dcp.models.resnet import BasicBlock, Bottleneck
 from visdom_logger.logger import VisdomLogger
 
-block_num = {'vgg': 16, 'preresnet56': 27, 'preresnet18': 8, 'preresnet8': 3, 'resnet18': 8, 'resnet50': 16}
+block_num = {'vgg19': 19, 'lenet5':5, 'preresnet56': 27, 'preresnet18': 8, 'preresnet8': 3, 'resnet18': 8, 'resnet50': 16}
 from visdom_logger.logger import VisdomLogger
 from thop import profile
 class LoggerForSacred():
@@ -185,6 +185,7 @@ class Experiment(object):
 
             testset = datasets.MNIST(root='./data', train=False, download=True, transform=transform_test)
             self.val_loader = torch.utils.data.DataLoader(testset, batch_size=self.settings.batch_size, shuffle=True, num_workers=1)
+            self.is_mnist = True
 
         elif self.settings.dataset == 'imagenet':
             dataset_path = os.path.join(self.settings.data_path, "imagenet")
@@ -244,14 +245,20 @@ class Experiment(object):
             if self.settings.net_type == "preresnet":
                 self.ori_model = md.PreResNet(depth=self.settings.depth, num_classes=self.settings.n_classes)
                 self.pruned_model = md.PreResNet(depth=self.settings.depth, num_classes=self.settings.n_classes)
+            if self.settings.net_type == 'vgg':
+                self.ori_model = md.VGG_CIFAR(depth=self.settings.depth, num_classes=self.settings.n_classes)
+                self.pruned_model = md.VGG_CIFAR(depth=self.settings.depth, num_classes=self.settings.n_classes)
             else:
                 assert False, "use {} data while network is {}".format(self.settings.dataset, self.settings.net_type)
 
         elif self.settings.dataset in ["mnist"]:
+            self.is_mnist = True
             if self.settings.net_type == "preresnet":
-                self.is_mnist = True
                 self.ori_model = md.PreResNet(depth=self.settings.depth, num_classes=self.settings.n_classes, is_mnist=self.is_mnist)
                 self.pruned_model = md.PreResNet(depth=self.settings.depth, num_classes=self.settings.n_classes, is_mnist=self.is_mnist)
+            elif self.settings.net_type == 'lenet':
+                self.ori_model = md.LeNet5()
+                self.pruned_model = md.LeNet5()
             else:
                 assert False, "use {} data while network is {}".format(self.settings.dataset, self.settings.net_type)
 
@@ -436,6 +443,24 @@ class Experiment(object):
                             if layer.bias is not None:
                                 temp_conv.bias.data.copy_(layer.bias.data)
                             module.conv3 = temp_conv
+        elif self.settings.net_type in ['vgg', 'lenet']:
+            for module in self.pruned_model.features.modules():
+                if isinstance(module, (nn.Conv2d)):
+                    block_count += 1
+                    layer = module
+                    if block_count <= self.current_block_count and not isinstance(layer, MaskConv2d): 
+                        temp_conv = MaskConv2d(
+                            in_channels=layer.in_channels,
+                            out_channels=layer.out_channels,
+                            kernel_size=layer.kernel_size,
+                            stride=layer.stride,
+                            padding=layer.padding,
+                            bias=(layer.bias is not None))
+                        temp_conv.weight.data.copy_(layer.weight.data)
+
+                        if layer.bias is not None:
+                            temp_conv.bias.data.copy_(layer.bias.data)
+                        module = temp_conv
 
     def channel_selection(self):
         """
@@ -522,6 +547,11 @@ class Experiment(object):
                             if ori_module.downsample is not None:
                                 ori_module.downsample = copy.deepcopy(pruned_module.downsample)
                     self.ori_model.fc = copy.deepcopy(self.pruned_model.fc)
+                elif self.settings.net_type in ['vgg', 'lenet']:
+                    for ori_module, pruned_module in zip (self.ori_model.modules(), self.pruned_model.modules()):
+                        if isinstance(ori_module, (nn.Conv2d)):
+                            ori_module = copy.deepcopy(pruned_module)
+                    self.ori_model.classifier = copy.deepcopy(self.pruned_model.classifier)
 
                 aux_fc_state = []
                 for i in range(len(self.segment_wise_trainer.aux_fc)):
@@ -580,6 +610,10 @@ class Experiment(object):
                                    self.segment_wise_trainer.aux_fc,
                                    self.segment_wise_trainer.final_block_count,
                                    index=self.num_segments)
+
+
+        torch.save(self.pruned_model, "cp_{}_{}_{}_{}.p".format(self.settings.net_type, self.settings.depth, self.settings.dataset, self.settings.pruning_rate))
+
         time_interval = time.time() - time_start
         log_str = "cost time: {}".format(str(datetime.timedelta(seconds=time_interval)))
 
@@ -619,47 +653,69 @@ class Experiment(object):
         """
 
         self.logger.info("|===>layer-wise channel selection: block-{}-{}".format(block_count, layer_name))
+
         # layer-wise channel selection
-        if layer_name == "conv2":
-            layer = module.conv2
-        elif layer_name == "conv3":
-            layer = module.conv3
-        else:
-            assert False, "unsupport layer: {}".format(layer_name)
-
-        if not isinstance(layer, MaskConv2d):
-            temp_conv = MaskConv2d(
-                in_channels=layer.in_channels,
-                out_channels=layer.out_channels,
-                kernel_size=layer.kernel_size,
-                stride=layer.stride,
-                padding=layer.padding,
-                bias=(layer.bias is not None))
-            temp_conv.weight.data.copy_(layer.weight.data)
-
-            if layer.bias is not None:
-                temp_conv.bias.data.copy_(layer.bias.data)
-            temp_conv.pruned_weight.data.fill_(0)
-            temp_conv.d.fill_(0)
-
+        if self.settings.net_type in ['resnet', 'preresnet']:
             if layer_name == "conv2":
-                module.conv2 = temp_conv
+                layer = module.conv2
             elif layer_name == "conv3":
-                module.conv3 = temp_conv
-            layer = temp_conv
+                layer = module.conv3
+            else:
+                assert False, "unsupport layer: {}".format(layer_name)
 
-        # define criterion
+            if not isinstance(layer, MaskConv2d):
+                temp_conv = MaskConv2d(
+                    in_channels=layer.in_channels,
+                    out_channels=layer.out_channels,
+                    kernel_size=layer.kernel_size,
+                    stride=layer.stride,
+                    padding=layer.padding,
+                    bias=(layer.bias is not None))
+                temp_conv.weight.data.copy_(layer.weight.data)
+
+                if layer.bias is not None:
+                    temp_conv.bias.data.copy_(layer.bias.data)
+                temp_conv.pruned_weight.data.fill_(0)
+                temp_conv.d.fill_(0)
+
+                if layer_name == "conv2":
+                    module.conv2 = temp_conv
+                elif layer_name == "conv3":
+                    module.conv3 = temp_conv
+                layer = temp_conv
+
+            # define criterion
+
+
+            # register hook
+            if layer_name == "conv2":
+                hook_origin = net_origin[block_count].conv2.register_forward_hook(self._hook_origin_feature)
+                hook_pruned = module.conv2.register_forward_hook(self._hook_pruned_feature)
+            elif layer_name == "conv3":
+                hook_origin = net_origin[block_count].conv3.register_forward_hook(self._hook_origin_feature)
+                hook_pruned = module.conv3.register_forward_hook(self._hook_pruned_feature)
+        elif self.settings.net_type in ['vgg', 'lenet']:
+            if not isinstance(module, MaskConv2d):
+                temp_conv = MaskConv2d(
+                    in_channels=module.in_channels,
+                    out_channels=module.out_channels,
+                    kernel_size=module.kernel_size,
+                    stride=module.stride,
+                    padding=module.padding,
+                    bias=(module.bias is not None))
+                temp_conv.weight.data.copy_(module.weight.data)
+
+                if module.bias is not None:
+                    temp_conv.bias.data.copy_(module.bias.data)
+                temp_conv.pruned_weight.data.fill_(0)
+                temp_conv.d.fill_(0)
+                module = temp_conv
+                hook_origin = net_origin[block_count].register_forward_hook(self._hook_origin_feature)
+                hook_pruned = module.register_forward_hook(self._hook_pruned_feature)
+                net_pruned[block_count] = module
+                layer = module
         criterion_mse = nn.MSELoss().cuda()
         criterion_softmax = nn.CrossEntropyLoss().cuda()
-
-        # register hook
-        if layer_name == "conv2":
-            hook_origin = net_origin[block_count].conv2.register_forward_hook(self._hook_origin_feature)
-            hook_pruned = module.conv2.register_forward_hook(self._hook_pruned_feature)
-        elif layer_name == "conv3":
-            hook_origin = net_origin[block_count].conv3.register_forward_hook(self._hook_origin_feature)
-            hook_pruned = module.conv3.register_forward_hook(self._hook_pruned_feature)
-
         net_origin_parallel = utils.data_parallel(net_origin, self.settings.n_gpus)
         net_pruned_parallel = utils.data_parallel(net_pruned, self.settings.n_gpus)
 
@@ -954,6 +1010,31 @@ class Experiment(object):
                                                         pivot_index,
                                                         channel_selection=True,
                                                         index=index, block_count=block_count)
+        elif self.settings.net_type in ['vgg', 'lenet']:
+            ms = iter(net_pruned.modules())
+            next(ms)
+            for module in ms:
+
+                if isinstance(module, (nn.Conv2d)):
+                    #block_count += 1
+                    # We will not prune the pruned blocks again
+                    self._layer_channel_selection(
+                        net_origin=net_origin, net_pruned=net_pruned,
+                        aux_fc=aux_fc, module=module, block_count=block_count)
+                    self.logger.info("|===>checking layer type: {}".format(type(module)))
+
+                    self.checkpoint.save_model(self.ori_model, self.pruned_model,
+                                               self.segment_wise_trainer.aux_fc,
+                                               pivot_index, channel_selection=True,
+                                               index=index, block_count=block_count)
+                    self.checkpoint.save_checkpoint(self.ori_model, self.pruned_model,
+                                                    self.segment_wise_trainer.aux_fc,
+                                                    self.segment_wise_trainer.fc_optimizer,
+                                                    self.segment_wise_trainer.seg_optimizer,
+                                                    pivot_index,
+                                                    channel_selection=True,
+                                                    index=index, block_count=block_count)
+                block_count += 1
 
 
 def main():
@@ -962,7 +1043,8 @@ def main():
     #                    help='configuration path')
     #args = parser.parse_args()
 
-    option = Option("mnist_resnet18_03.hocon")
+    option = Option("mnist_lenet5_03.hocon")
+    #option = Option("mnist_resnet18_03.hocon")
     vis = VisdomLogger(port=10999)
     l = LoggerForSacred(vis,0)
     experiment = Experiment(option, logger=l)

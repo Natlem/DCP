@@ -18,6 +18,7 @@ import dcp.models as md
 from dcp.mask_conv import MaskConv2d
 from dcp.models.preresnet import PreBasicBlock
 from dcp.models.resnet import BasicBlock, Bottleneck
+from dcp.models.lenet import PrunedLetNet5_Wrapper
 from visdom_logger.logger import VisdomLogger
 from thop import profile
 
@@ -220,6 +221,9 @@ class Experiment(object):
                 self.is_mnist = True
                 self.pruned_model = md.PreResNet(depth=self.settings.depth, num_classes=self.settings.n_classes,
                                                  is_mnist=self.is_mnist)
+            elif self.settings.net_type == "lenet":
+                self.is_mnist = True
+                self.pruned_model = md.LeNet5()
             else:
                 assert False, "use {} data while network is {}".format(self.settings.dataset, self.settings.net_type)
 
@@ -328,6 +332,9 @@ class Experiment(object):
             model_prune = ResModelPrune(model=self.pruned_model,
                                         net_type=self.settings.net_type,
                                         depth=self.settings.depth)
+
+        elif self.settings.net_type in ['lenet', 'vgg']:
+            model_prune = PrunedLetNet5_Wrapper(torch.load(self.settings.retrain_p))
         else:
             assert False, "unsupport net_type: {}".format(self.settings.net_type)
 
@@ -404,7 +411,8 @@ def main():
     #                    help='input batch size for training (default: 64)')
     #args = parser.parse_args()
 
-    option = Option("mnist_resnet18_03.hocon")
+    #option = Option("mnist_resnet18_03.hocon")
+    option = Option("mnist_lenet5_03.hocon")
     vis = VisdomLogger(port=10999)
     l = LoggerForSacred(vis,0)
 
