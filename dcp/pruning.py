@@ -11,7 +11,7 @@ logger = logging.getLogger('channel_selection')
 
 def get_select_channels(d):
     """
-    get select channels
+    Get select channels
     """
 
     select_channels = (d > 0).nonzero().squeeze()
@@ -20,12 +20,12 @@ def get_select_channels(d):
 
 def get_thin_params(layer, select_channels, dim=0):
     """
-    get params from layers after pruning
+    Get params from layers after pruning
     """
 
     if isinstance(layer, (nn.Conv2d, MaskConv2d)):
-        if isinstance(layer, MaskConv2d) and dim == 1:
-            layer.pruned_weight.data.mul_(layer.d.data.unsqueeze(0).unsqueeze(2).unsqueeze(3))
+        # if isinstance(layer, MaskConv2d) and dim == 1:
+        #     layer.pruned_weight.data.mul_(layer.d.data.unsqueeze(0).unsqueeze(2).unsqueeze(3))
         if isinstance(layer, MaskConv2d):
             layer.weight.data = layer.pruned_weight.clone().data
         thin_weight = layer.weight.data.index_select(dim, select_channels)
@@ -57,11 +57,11 @@ def get_thin_params(layer, select_channels, dim=0):
 
 def replace_layer(old_layer, init_weight, init_bias=None, keeping=False):
     """
-    replace specific layer of model
+    Replace specific layer of model
     :params layer: original layer
     :params init_weight: thin_weight
     :params init_bias: thin_bias
-    :returns new_layer
+    :params keeping: whether to keep MaskConv2d
     """
 
     if hasattr(old_layer, "bias") and old_layer.bias is not None:
@@ -129,7 +129,7 @@ def replace_layer(old_layer, init_weight, init_bias=None, keeping=False):
 # resnet only ---------------------------------------------------------------------------
 class ResBlockPrune(object):
     """
-    residual block pruning
+    Residual block pruning
     """
 
     def __init__(self, block, block_type):
@@ -139,7 +139,7 @@ class ResBlockPrune(object):
 
     def pruning(self):
         """
-        execute pruning
+        Perform pruning
         """
 
         # prune pre-resnet on cifar
@@ -162,7 +162,8 @@ class ResBlockPrune(object):
 
             # prune and replace conv1
             thin_weight, thin_bias = get_thin_params(self.block.conv1, select_channels, 0)
-            self.block.conv1 = replace_layer(self.block.conv1, thin_weight, thin_bias, keeping=True)
+            self.block.conv1 = replace_layer(self.block.conv1, thin_weight, thin_bias)
+            # self.block.conv1 = replace_layer(self.block.conv1, thin_weight, thin_bias, keeping=True)
             self.block.cuda()
 
         # prune shallow resnet on imagenet
@@ -235,7 +236,7 @@ class ResBlockPrune(object):
 
 class ResSeqPrune(object):
     """
-    sequantial pruning
+    Sequantial pruning
     """
 
     def __init__(self, sequential, seq_type):
@@ -250,7 +251,7 @@ class ResSeqPrune(object):
 
     def pruning(self):
         """
-        execute pruning
+        Perform pruning
         """
 
         for i in range(self.sequential_length):
@@ -266,7 +267,7 @@ class ResSeqPrune(object):
 
 class ResModelPrune(object):
     """
-    prune residual networks
+    Prune residual networks
     """
 
     def __init__(self, model, net_type, depth):
@@ -278,11 +279,11 @@ class ResModelPrune(object):
                 self.net_type = "resnet_basic"
         else:
             self.net_type = net_type
-        logger.info("|===>init ResModelPrune")
+        logger.info("|===>Init ResModelPrune")
 
     def run(self):
         """
-        execute pruning
+        Perform pruning
         """
 
         if self.net_type in ["resnet_basic", "resnet_bottleneck"]:

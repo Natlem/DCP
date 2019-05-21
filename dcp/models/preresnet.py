@@ -103,6 +103,7 @@ class PreResNet(nn.Module):
 
         self.in_plane = 16 * wide_factor
         self.depth = depth
+
         n = round((depth - 2) / 6)
         self.conv = conv3x3(3, 16 * wide_factor)
         if  is_mnist:

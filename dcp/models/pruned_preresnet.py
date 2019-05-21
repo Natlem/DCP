@@ -106,6 +106,7 @@ class PrunedPreResNet(nn.Module):
         self.depth = depth
         n = (depth - 2) / 6
         self.conv = conv3x3(3, 16 * wide_factor)
+
         if  is_mnist:
             self.conv = conv3x3(1, 16 * wide_factor)
         self.layer1 = self._make_layer(PrunedPreBasicBlock, 16 * wide_factor, n, pruning_rate)

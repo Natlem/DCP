@@ -9,15 +9,15 @@ cfg = {
     'VGG19': [64, 64, 'M', 128, 128, 'M', 256, 256, 256, 256, 'M', 512, 512, 512, 512, 'M', 512, 512, 512, 512, 'A'],
 }
 
-__all__ = ["Pruned_VGG_CIFAR"]
+__all__ = ["PrunedVGGCIFAR"]
 
 
-class Pruned_VGG_CIFAR(nn.Module):
+class PrunedVGGCIFAR(nn.Module):
 
-    def __init__(self, depth=19, num_classes=10):
-        super(Pruned_VGG_CIFAR, self).__init__()
+    def __init__(self, pruning_rate, depth=19, num_classes=10):
+        super(PrunedVGGCIFAR, self).__init__()
         self.cfg = cfg['VGG' + str(depth)]
-        self.features = self.make_layers(self.cfg)
+        self.features = self.make_layers(self.cfg, pruning_rate)
         self.classifier = nn.Linear(512, num_classes)
         self._initialize_weights()
 
@@ -39,12 +39,14 @@ class Pruned_VGG_CIFAR(nn.Module):
     def make_layers(self, cfg, pruning_rate):
         layers = []
         in_channels = 3
-        for v in cfg:
+        for i, v in enumerate(cfg):
             if v == 'M':
                 layers += [nn.MaxPool2d(kernel_size=2, stride=2)]
             elif v == 'A':
                 layers += [nn.AvgPool2d(kernel_size=2, stride=2)]
             else:
+                if i != len(cfg) - 2:
+                    v = int(v - math.floor(v * pruning_rate))
                 conv2d = nn.Conv2d(in_channels, v, kernel_size=3, padding=1)
                 layers += [conv2d, nn.BatchNorm2d(v), nn.ReLU(inplace=True)]
                 in_channels = v

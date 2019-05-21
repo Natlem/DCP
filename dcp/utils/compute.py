@@ -1,31 +1,20 @@
+
+import math
+
 import torch
 
-__all__ = ["compute_tencrop", "compute_singlecrop", "AverageMeter"]
+__all__ = ["compute_singlecrop_error", "AverageMeter"]
 
 
-def compute_tencrop(outputs, labels):
-    output_size = outputs.size()
-    outputs = outputs.view(output_size[0] / 10, 10, output_size[1])
-    outputs = outputs.sum(1).squeeze(1)
-    # compute top1
-    _, pred = outputs.topk(1, 1, True, True)
-    pred = pred.t()
-    top1_count = pred.eq(labels.data.view(
-        1, -1).expand_as(pred)).view(-1).float().sum(0)
-    top1_error = 100.0 - 100.0 * top1_count / labels.size(0)
-    top1_error = float(top1_error.cpu().numpy())
-
-    # compute top5
-    _, pred = outputs.topk(5, 1, True, True)
-    pred = pred.t()
-    top5_count = pred.eq(labels.data.view(
-        1, -1).expand_as(pred)).view(-1).float().sum(0)
-    top5_error = 100.0 - 100.0 * top5_count / labels.size(0)
-    top5_error = float(top5_error.cpu().numpy())
-    return top1_error, 0, top5_error
-
-
-def compute_singlecrop(outputs, labels, loss, top5_flag=False, mean_flag=False):
+def compute_singlecrop_error(outputs, labels, loss, top5_flag=False):
+    """
+    Compute singlecrop top-1 and top-5 error
+    :param outputs: the output of the model
+    :param labels: the ground truth of the data
+    :param loss: the loss value of current batch
+    :param top5_flag: whether to calculate the top-5 error
+    :return: top-1 error list, loss list and top-5 error list
+    """
     with torch.no_grad():
         if isinstance(outputs, list):
             top1_loss = []
@@ -48,15 +37,23 @@ def compute_singlecrop(outputs, labels, loss, top5_flag=False, mean_flag=False):
             return top1_error, top1_loss
 
 
-def accuracy(output, target, topk=(1,)):
-    """Computes the precision@k for the specified values of k"""
+
+def accuracy(outputs, labels, topk=(1,)):
+    """
+    Computes the precision@k for the specified values of k
+    :param outputs: the outputs of the model
+    :param labels: the ground truth of the data
+    :param topk: the list of k in top-k
+    :return: accuracy
+    """
+
     with torch.no_grad():
         maxk = max(topk)
-        batch_size = target.size(0)
+        batch_size = labels.size(0)
 
-        _, pred = output.topk(maxk, 1, True, True)
+        _, pred = outputs.topk(maxk, 1, True, True)
         pred = pred.t()
-        correct = pred.eq(target.view(1, -1).expand_as(pred))
+        correct = pred.eq(labels.view(1, -1).expand_as(pred))
 
         res = []
         for k in topk:
@@ -73,7 +70,7 @@ class AverageMeter(object):
 
     def reset(self):
         """
-        reset all parameters
+        Reset all parameters
         """
         self.val = 0
         self.avg = 0
@@ -82,9 +79,33 @@ class AverageMeter(object):
 
     def update(self, val, n=1):
         """
-        update parameters
+        Update parameters
         """
+
         self.val = val
         self.sum += val * n
         self.count += n
         self.avg = self.sum / self.count
+
+
+def minus_inputs(inputs):
+    outputs = []
+    for i in range(len(inputs)):
+        outputs.append(-inputs[i])
+    return outputs
+
+
+def compute_inner_product(inputs_a, inputs_b):
+    cum_sum = 0
+    for i in range(len(inputs_a)):
+        cum_sum += ((inputs_a[i].data.mul(inputs_b[i].data)).sum()).item()
+        # cum_sum += ((inputs_a[i] * inputs_b[i]).sum()).item()
+    return cum_sum
+
+
+def compute_cosine(inputs_a, inputs_b):
+    a_b_inner_product = compute_inner_product(inputs_a, inputs_b)
+    inputs_a_norm = math.sqrt(compute_inner_product(inputs_a, inputs_a))
+    inputs_b_norm = math.sqrt(compute_inner_product(inputs_b, inputs_b))
+    a_b_cosine = a_b_inner_product / (inputs_a_norm * inputs_b_norm)
+    return a_b_cosine, a_b_inner_product, inputs_a_norm, inputs_b_norm

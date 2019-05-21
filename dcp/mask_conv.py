@@ -1,6 +1,6 @@
 import torch
-from torch.nn import Parameter
 import torch.nn as nn
+from torch.nn import Parameter
 from torch.nn import functional as F
 
 __all__ = ["MaskConv2d"]
@@ -8,7 +8,12 @@ __all__ = ["MaskConv2d"]
 
 class MaskConv2d(nn.Conv2d):
     """
-    custom convolutional layers for channel pruning
+    Custom convolutional layers for channel pruning.
+    Here we use mask to indicate the selected/unselected channels. 1 denotes selected and 0 denotes unselected.
+    We store the original weight in weight and the pruned weight in pruned_weight.
+    Before channel selection, the pruned weight is initialized to zero.
+    In greedy algorithm for channel selection, we initialize the pruned weight with the original weight and
+    then optimized pruned weight w.r.t. the selected channels by minimizing the problem (9).
     """
 
     def __init__(self, in_channels, out_channels, kernel_size,
